@@ -1,232 +1,387 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-import seaborn as sns
-from sklearn.manifold import TSNE
-import matplotlib.patches as mpatches
-from scipy.stats import gaussian_kde
-import plotly.express as px
+from sklearn.ensemble import IsolationForest
+from datetime import datetime, timedelta
+import plotly.graph_objects as go
 
 class HealthMetrics:
     def __init__(self, person_id):
         self.person_id = person_id
+        self.current_date = datetime.now().date()
         self.health_data = self.load_health_data()
-
+        
     def load_health_data(self):
-        # Load data using pandas
-        df = pd.read_csv('combined_health_data.csv')
+        try:
+            df = pd.read_csv("combined_health_data_check.csv")
+        except FileNotFoundError:
+            raise FileNotFoundError("CSV file not found. Please check the file path.")
+
+        person_data = df[df['person_id'] == self.person_id].copy()
         
-        # Filter data for the specific person_id
-        person_data = df[df['person_id'] == self.person_id]
-        
-        # Convert 'date' column to datetime format for proper sorting
+        if person_data.empty:
+            raise ValueError(f"No data found for person ID: {self.person_id}")
+
         person_data['date'] = pd.to_datetime(person_data['date'])
+        person_data.sort_values('date', inplace=True)
+        person_data.set_index('date', inplace=True)
+        person_data = person_data.ffill().infer_objects(copy=False)
         
-        # Sort the DataFrame by date
-        person_data = person_data.sort_values(by='date')
-        
-        # Handle missing values by forward filling
-        person_data.fillna(method='ffill', inplace=True)
-        
-        # Convert the DataFrame to a dictionary with dates as keys
-        data = person_data.set_index('date').T.to_dict()
-        return data
+        return person_data.to_dict(orient='index')
+
+    def calculate_age(self, date_of_birth):
+        birth_date = pd.to_datetime(date_of_birth).date()
+        return (self.current_date - birth_date).days // 365
 
     def calculate_bmi(self):
-        latest_metrics = self.health_data[list(self.health_data.keys())[-1]]
-        height = latest_metrics['height']
-        weight = latest_metrics['weight']
-        return round(weight / (height ** 2), 1)
+        latest = next(iter(self.health_data.values()))
+        return round(latest['weight'] / (latest['height'] ** 2), 1)
+
+    def heart_disease_risk_score(self, entry):
+        score = 0
+        
+        # Blood Pressure
+        if entry['bp_upper_limit'] >= 160 or entry['bp_lower_limit'] >= 100:
+            score += 3  # Stage 2 Hypertension
+        elif entry['bp_upper_limit'] >= 140 or entry['bp_lower_limit'] >= 90:
+            score += 2  # Stage 1 Hypertension
+        elif entry['bp_upper_limit'] >= 130 or entry['bp_lower_limit'] >= 85:
+            score += 1  # Elevated BP
+
+        # Cholesterol
+        if entry['cholesterol'] > 240:
+            score += 2  # High total cholesterol
+        elif entry['cholesterol'] > 200:
+            score += 1  # Borderline high
+
+        if entry['cholesterol_HDL'] < 40:
+            score += 2  # Low HDL (bad)
+        elif entry['cholesterol_HDL'] < 60:
+            score += 1  # Borderline HDL
+
+        if entry['cholesterol_LDL'] > 190:
+            score += 3  # Very high LDL
+        elif entry['cholesterol_LDL'] > 160:
+            score += 2  # High LDL
+        elif entry['cholesterol_LDL'] > 130:
+            score += 1  # Borderline high LDL
+
+        # Smoking
+        if entry['smoking'] == 'Daily':
+            score += 3
+        elif entry['smoking'] == 'Weekly':
+            score += 2
+        elif entry['smoking'] == 'Occasionally':
+            score += 1
+
+        # Physical Activity
+        if entry['physical_activity_level'] == 'Never':
+            score += 2
+        elif entry['physical_activity_level'] == 'Occasionally':
+            score += 1
+
+        # Age
+        age = self.calculate_age(entry['date_of_birth'])
+        if age > 65:
+            score += 3
+        elif age > 50:
+            score += 2
+        elif age > 40:
+            score += 1
+
+        # BMI
+        bmi = self.calculate_bmi()
+        if bmi > 35:
+            score += 3  # Obese
+        elif bmi > 30:
+            score += 2  # Overweight
+        elif bmi > 25:
+            score += 1  # Slightly overweight
+
+        # Normalize score to 0-1
+        return score / 21
+
+    def diabetic_risk_score(self, entry):
+        score = 0
+        
+        # Glucose Levels
+        if entry['glucose_level'] > 200:
+            score += 3  # Diabetic range
+        elif entry['glucose_level'] > 140:
+            score += 2  # Prediabetic range
+        elif entry['glucose_level'] > 100:
+            score += 1  # Borderline high
+
+        # Insulin Levels
+        if entry['insulin'] > 25:
+            score += 2  # High insulin resistance
+        elif entry['insulin'] > 15:
+            score += 1  # Moderate insulin resistance
+
+        # BMI
+        bmi = self.calculate_bmi()
+        if bmi > 35:
+            score += 3  # Obese
+        elif bmi > 30:
+            score += 2  # Overweight
+        elif bmi > 25:
+            score += 1  # Slightly overweight
+
+        # Physical Activity
+        if entry['physical_activity_level'] == 'Never':
+            score += 2
+        elif entry['physical_activity_level'] == 'Occasionally':
+            score += 1
+
+        # Age
+        age = self.calculate_age(entry['date_of_birth'])
+        if age > 65:
+            score += 3
+        elif age > 50:
+            score += 2
+        elif age > 40:
+            score += 1
+
+        # Normalize score to 0-1
+        return score / 13
 
     def check_concerns(self):
+        df = pd.DataFrame.from_dict(self.health_data, orient='index')
         concerns = {}
-        
-        # Create a DataFrame for analysis
-        metrics_df = pd.DataFrame.from_dict(self.health_data, orient='index')
-        
-        # Calculate current metrics
-        bmi = self.calculate_bmi()
-        concerns['BMI'] = 'high' if bmi > 25 else 'low' if bmi < 18.5 else 'normal'
-        
-        avg_heart_rate = metrics_df['heart_rate'].mean()
-        concerns['Heart Rate'] = 'high' if avg_heart_rate > 100 else 'low' if avg_heart_rate < 60 else 'normal'
-        
-        avg_bp_upper = metrics_df['bp_upper_limit'].mean()
-        avg_bp_lower = metrics_df['bp_lower_limit'].mean()
-        concerns['BP'] = 'high' if avg_bp_upper > 140 or avg_bp_lower > 90 else 'normal'
-        
-        avg_spo2 = metrics_df['spo2'].mean()
-        concerns['SPO2'] = 'low' if avg_spo2 < 95 else 'normal'
-        
-        avg_body_temp = metrics_df['body_temperature'].mean()
-        concerns['Body Temperature'] = 'high' if avg_body_temp > 37.5 else 'low' if avg_body_temp < 36 else 'normal'
-        
-        avg_cholesterol = metrics_df['cholesterol'].mean()
-        concerns['Cholesterol'] = 'high' if avg_cholesterol > 200 else 'normal'
-        
+        concerns['BMI'] = 'high' if (bmi := self.calculate_bmi()) > 25 else 'low' if bmi < 18.5 else 'normal'
+        concerns['Heart Rate'] = 'high' if (hr := df['heart_rate'].mean()) > 100 else 'low' if hr < 60 else 'normal'
+        concerns['BP'] = 'high' if (df['bp_upper_limit'].mean() > 140) or (df['bp_lower_limit'].mean() > 90) else 'normal'
+        concerns['SPO2'] = 'low' if (spo := df['spo2'].mean()) < 95 else 'normal'
+        concerns['Body Temp'] = 'high' if (temp := df['body_temperature'].mean()) > 37.5 else 'low' if temp < 36 else 'normal'
+        concerns['Cholesterol'] = 'high' if (chol := df['cholesterol'].mean()) > 200 else 'normal'
+        concerns['Hydration'] = 'low' if (hyd := df['hydration'].mean()) < 2.0 else 'normal'
+        concerns['Sleep'] = 'low' if (sleep := df['sleep_duration'].mean()) < 6 else 'normal'
+        concerns['Steps'] = 'low' if (steps := df['steps_taken'].mean()) < 5000 else 'normal'
         return concerns
 
     def generate_health_tips(self):
         tips = []
         concerns = self.check_concerns()
         
-        # Detailed do's and don'ts based on health metrics
-        if concerns['BMI'] == 'high':
-            tips.append("Do: Engage in regular physical activity and maintain a balanced diet rich in fruits and vegetables.")
-            tips.append("Don't: Skip meals or rely on fad diets.")
-        
-        if concerns['Heart Rate'] == 'high':
-            tips.append("Do: Practice relaxation techniques such as deep breathing or yoga.")
-            tips.append("Don't: Ignore persistent high heart rates; consult a healthcare professional.")
-        
-        if concerns['BP'] == 'high':
-            tips.append("Do: Reduce sodium intake and increase potassium-rich foods.")
-            tips.append("Don't: Consume excessive alcohol or caffeine.")
-        
-        if concerns['SPO2'] == 'low':
-            tips.append("Do: Ensure proper ventilation and consider breathing exercises.")
-            tips.append("Don't: Smoke or expose yourself to secondhand smoke.")
-        
-        if concerns['Body Temperature'] == 'high':
-            tips.append("Do: Stay hydrated and rest adequately.")
-            tips.append("Don't: Engage in strenuous activities when feeling unwell.")
-        
-        if concerns['Cholesterol'] == 'high':
-            tips.append("Do: Include healthy fats in your diet, like avocados and nuts.")
-            tips.append("Don't: Consume trans fats found in many processed foods.")
-
-        return tips
-
-    def analyze_health_impacts(self):
-        impacts = []
-        metrics_df = pd.DataFrame.from_dict(self.health_data, orient='index')
-        
-        # Clustering to identify health states
-        scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(metrics_df[['heart_rate', 'bp_upper_limit', 'spo2', 'body_temperature', 'cholesterol','haemoglobin','thyroid_levels','glucose_level','insulin','cough','fever','sore_throat','shortness_of_breath','headache']])
-        kmeans = KMeans(n_clusters=3)
-        metrics_df['health_state'] = kmeans.fit_predict(scaled_data)
-        
-        # Analyze cluster centroids
-        centroids = pd.DataFrame(scaler.inverse_transform(kmeans.cluster_centers_), 
-                                 columns=['heart_rate', 'bp_upper_limit', 'spo2', 'body_temperature', 'cholesterol','haemoglobin','thyroid_levels','glucose_level','insulin','cough','fever','sore_throat','shortness_of_breath','headache'])
-        centroids['cluster'] = range(3)
-        
-        # Assign meaningful labels to clusters
-        cluster_labels = {
-            0: "High-risk state (high BP, high cholesterol, low SPO2)",
-            1: "Moderate-risk state (slightly elevated metrics)",
-            2: "Low-risk state (optimal health)"
-        }
-        
-        # Add cluster descriptions to impacts
-        for cluster, label in cluster_labels.items():
-            impacts.append(f"Cluster {cluster}: {label}. Count: {metrics_df['health_state'].value_counts().get(cluster, 0)}")
-        
-        # Add centroid details for better interpretation
-        impacts.append("Cluster Centroids (average values):")
-        impacts.append(centroids.to_string())
-        
-        return impacts
-        
-    
-    def generate_insights(self):
-        insights = {
-            "Cumulative Metrics": {
-                "Average Weight": pd.Series([data["weight"] for data in self.health_data.values()]).mean(),
-                "Average Heart Rate": pd.Series([data["heart_rate"] for data in self.health_data.values()]).mean(),
-                "Average BP Upper Limit": pd.Series([data["bp_upper_limit"] for data in self.health_data.values()]).mean(),
-                "Average BP Lower Limit": pd.Series([data["bp_lower_limit"] for data in self.health_data.values()]).mean(),
-                "Average SPO2": pd.Series([data["spo2"] for data in self.health_data.values()]).mean(),
-                "Average Body Temperature": pd.Series([data["body_temperature"] for data in self.health_data.values()]).mean(),
-                "Average Cholesterol": pd.Series([data["cholesterol"] for data in self.health_data.values()]).mean(),
-                "Average Glucose Level": pd.Series([data["glucose_level"] for data in self.health_data.values()]).mean(),
-                "Average Urea": pd.Series([data["urea"] for data in self.health_data.values()]).mean(),
+        tip_map = {
+            'BMI': {
+                'high': ["Increase physical activity", "Reduce processed food intake", "Consult a nutritionist"],
+                'low': ["Increase calorie intake", "Focus on nutrient-dense foods", "Eat smaller, frequent meals"]
             },
-            "Current Concerns": self.check_concerns(),
-            "Health Tips": self.generate_health_tips(),
-            "Health Impact Analysis": self.analyze_health_impacts()
+            'Heart Rate': {
+                'high': ["Practice deep breathing", "Avoid stimulants", "Consult a cardiologist"],
+                'low': ["Stay hydrated", "Check electrolyte levels", "Monitor heart rate regularly"]
+            },
+            'BP': {
+                'high': ["Reduce sodium intake", "Monitor blood pressure regularly", "Limit alcohol consumption"],
+                'low': ["Increase fluid intake", "Check for underlying conditions", "Avoid sudden posture changes"]
+            },
+            'SPO2': {
+                'low': ["Improve ventilation", "Practice breathing exercises", "Avoid smoking"]
+            },
+            'Hydration': {
+                'low': ["Drink at least 2 liters of water daily", "Include hydrating foods like fruits", "Avoid excessive caffeine"]
+            },
+            'Sleep': {
+                'low': ["Maintain a consistent sleep schedule", "Avoid screens before bed", "Create a relaxing bedtime routine"]
+            },
+            'Steps': {
+                'low': ["Take short walks every hour", "Use stairs instead of elevators", "Set daily step goals"]
+            }
         }
         
-        return insights
-
-
-    def get_last_14_days_status(self):
-        metrics_df = pd.DataFrame.from_dict(self.health_data, orient='index')
+        for metric, status in concerns.items():
+            if status in ['high', 'low'] and metric in tip_map:
+                tips.extend([f"{metric}: {tip}" for tip in tip_map[metric].get(status, [])])
         
-        # List of all 14 features
+        return tips if tips else ["No specific recommendations - maintain current healthy habits"]
+
+class EnhancedHealthMetrics(HealthMetrics):
+    def __init__(self, person_id):
+        super().__init__(person_id)
+        self.metrics_df = pd.DataFrame.from_dict(self.health_data, orient='index')
+        self.perform_clustering()
+        
+    def perform_clustering(self):
+        # Calculate risk scores
+        self.metrics_df['heart_risk'] = self.metrics_df.apply(
+            lambda x: self.heart_disease_risk_score(x), axis=1
+        )
+        self.metrics_df['diabetic_risk'] = self.metrics_df.apply(
+            lambda x: self.diabetic_risk_score(x), axis=1
+        )
+        
+        # Select features for clustering
         features = ['heart_rate', 'bp_upper_limit', 'spo2', 'body_temperature', 'cholesterol',
                     'haemoglobin', 'thyroid_levels', 'glucose_level', 'insulin', 'cough',
-                    'fever', 'sore_throat', 'shortness_of_breath', 'headache']
+                    'fever', 'sore_throat', 'shortness_of_breath', 'headache', 'hydration',
+                    'sleep_duration', 'steps_taken']
         
-        # Clustering
+        # Normalize data
         scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(metrics_df[features])
-        kmeans = KMeans(n_clusters=3)
-        metrics_df['health_state'] = kmeans.fit_predict(scaled_data)
+        scaled_data = scaler.fit_transform(self.metrics_df[features])
         
-        # Assign meaningful labels to clusters
-        cluster_labels = {
-            0: "High-risk state",
-            1: "Moderate-risk state",
-            2: "Low-risk state"
+        # Perform clustering
+        kmeans = KMeans(n_clusters=3, random_state=42)
+        self.metrics_df['cluster'] = kmeans.fit_predict(scaled_data)
+        
+        # Calculate clustering risk score (normalized to 0-1)
+        self.metrics_df['cluster_risk'] = self.metrics_df['cluster'].apply(
+            lambda x: x / 2  # Normalize cluster number to 0-1
+        )
+        
+        # Calculate overall risk score
+        self.metrics_df['overall_risk'] = (
+            self.metrics_df['heart_risk'] + 
+            self.metrics_df['diabetic_risk'] + 
+            self.metrics_df['cluster_risk']
+        ) / 3
+        
+        # Label risk levels based on thresholds
+        self.metrics_df['risk_level'] = self.metrics_df['overall_risk'].apply(
+            lambda x: 'High Risk' if x > 0.55 else 'Moderate Risk' if x >= 0.20 else 'Low Risk'
+        )
+        
+    def get_last_10_days_status(self):
+        last_10_days = self.metrics_df.tail(10).copy()
+        last_10_days['date'] = last_10_days.index.strftime('%Y-%m-%d')
+        last_10_days = last_10_days[['date', 'cluster_risk', 'heart_risk', 'diabetic_risk', 'overall_risk', 'risk_level']]
+        return last_10_days.to_dict(orient='records')
+    
+    def plot_risk_trends(self):
+        last_10_days = self.metrics_df.tail(10).copy()
+        last_10_days['date'] = last_10_days.index.strftime('%Y-%m-%d')
+        
+        # Create figure
+        fig = go.Figure()
+
+        # Add traces for each risk type
+        fig.add_trace(go.Scatter(
+            x=last_10_days['date'], y=last_10_days['cluster_risk'],
+            mode='lines+markers', name='Cluster Risk'
+        ))
+        fig.add_trace(go.Scatter(
+            x=last_10_days['date'], y=last_10_days['heart_risk'],
+            mode='lines+markers', name='Heart Risk'
+        ))
+        fig.add_trace(go.Scatter(
+            x=last_10_days['date'], y=last_10_days['diabetic_risk'],
+            mode='lines+markers', name='Diabetic Risk'
+        ))
+        fig.add_trace(go.Scatter(
+            x=last_10_days['date'], y=last_10_days['overall_risk'],
+            mode='lines+markers', name='Overall Risk'
+        ))
+
+        # Add risk level background colors
+        fig.add_hrect(y0=0, y1=0.20, line_width=0, fillcolor="green", opacity=0.1, annotation_text="Low Risk")
+        fig.add_hrect(y0=0.20, y1=0.55, line_width=0, fillcolor="orange", opacity=0.1, annotation_text="Moderate Risk")
+        fig.add_hrect(y0=0.55, y1=1.0, line_width=0, fillcolor="red", opacity=0.1, annotation_text="High Risk")
+
+        # Update layout
+        fig.update_layout(
+            title="Last 10 Days Risk Trends",
+            xaxis_title="Date",
+            yaxis_title="Risk Score",
+            yaxis_range=[0, 1],
+            legend=dict(x=0.02, y=0.98),
+            hovermode="x unified"
+        )
+        # fig.show()
+        fig.write_image('figure.png')
+    
+    def get_health_status(self):
+        status = {
+            'current_risk': self.metrics_df['risk_level'].iloc[-1],
+            'trend': self.calculate_trend(),
+            'anomalies': self.detect_anomalies(),
+            'scores': {
+                'heart_risk': self.metrics_df['heart_risk'].iloc[-1],
+                'diabetic_risk': self.metrics_df['diabetic_risk'].iloc[-1],
+                'cluster_risk': self.metrics_df['cluster_risk'].iloc[-1],
+                'overall_risk': self.metrics_df['overall_risk'].iloc[-1]
+            }
         }
-        
-        # Get the last 14 days' data
-        last_14_days = metrics_df.tail(14)
-        
-        # Sort by date
-        last_14_days = last_14_days.sort_index()
-        
-        # Extract date, cluster level, and cluster name
-        last_14_days_status = last_14_days[['health_state']].copy()
-        last_14_days_status['cluster_name'] = last_14_days_status['health_state'].map(cluster_labels)
-        
-        # Reset index to include date in the output
-        last_14_days_status = last_14_days_status.reset_index()
-        last_14_days_status.rename(columns={'index': 'date', 'health_state': 'cluster_level'}, inplace=True)
-        
-        return last_14_days_status
-
-    def plot_pie_chart(self):
-        # Get last 14 days' status
-        last_14_days_status = self.get_last_14_days_status()
-        
-        # Count the occurrences of each cluster
-        cluster_counts = last_14_days_status['cluster_name'].value_counts()
-        
-        # Create a pie chart using Plotly
-        fig = px.pie(cluster_counts, 
-                     values=cluster_counts.values, 
-                     names=cluster_counts.index, 
-                     title='Distribution of Health States in Last 14 Days',
-                     labels={'names': 'Health State', 'values': 'Count'})
-        
-        # Add legends and customize layout
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-        fig.update_layout(legend_title_text='Health State')
-        
-        # Show the plot
-        fig.show()
+        return status
     
+    def calculate_trend(self):
+        # Calculate 7-day moving average of overall risk
+        return self.metrics_df['overall_risk'].rolling(7).mean().iloc[-1]
     
-# Example usage
-if __name__ == '__main__':
+    def detect_anomalies(self):
+        # Use isolation forest for anomaly detection
+        iso = IsolationForest(contamination=0.1)
+        self.metrics_df['anomaly'] = iso.fit_predict(self.metrics_df[['heart_rate', 'glucose_level']])
+        return self.metrics_df[self.metrics_df['anomaly'] == -1].index.strftime('%Y-%m-%d').tolist()
+    
+    def cluster_analysis(self):
+        analysis = {
+            'risk_distribution': self.metrics_df['risk_level'].value_counts().to_dict(),
+            'avg_heart_risk': self.metrics_df.groupby('risk_level')['heart_risk'].mean().to_dict(),
+            'avg_diabetic_risk': self.metrics_df.groupby('risk_level')['diabetic_risk'].mean().to_dict(),
+            'avg_cluster_risk': self.metrics_df.groupby('risk_level')['cluster_risk'].mean().to_dict(),
+            'avg_overall_risk': self.metrics_df.groupby('risk_level')['overall_risk'].mean().to_dict()
+        }
+        return analysis
+    
+    def generate_report(self):
+        report = {
+            'basic_info': {
+                'person_id': self.person_id,
+                'age': self.calculate_age(next(iter(self.health_data.values()))['date_of_birth']),
+                'bmi': self.calculate_bmi()
+            },
+            'health_status': self.get_health_status(),
+            'last_10_days_status': self.get_last_10_days_status(),
+            'cluster_analysis': self.cluster_analysis(),
+            'recommendations': self.generate_health_tips()
+        }
+        return report
 
-    user_id = int(input("Enter user ID (1-3): "))
-    health_metrics = HealthMetrics(person_id=user_id)
-
-    # Generate insights and display them
-    insights = health_metrics.generate_insights()
-    print(insights)
-
-    # Get last 14 days' status
-    last_14_days_status = health_metrics.get_last_14_days_status()
-    print("Last 14 Days' Status:")
-    print(last_14_days_status.to_string(index=False))
-
-    # Plot pie chart
-    health_metrics.plot_pie_chart()
+# Driver Code
+if __name__ == "__main__":
+    try:
+        person_id = int(input("Enter person ID (1-6): "))
+        analyzer = EnhancedHealthMetrics(person_id)
+        report = analyzer.generate_report()
+        
+        print("\n=== Health Report ===")
+        print(f"Person ID: {report['basic_info']['person_id']}")
+        print(f"Age: {report['basic_info']['age']}")
+        print(f"BMI: {report['basic_info']['bmi']}")
+        
+        print("\nCurrent Risk Level:", report['health_status']['current_risk'])
+        print("Recent Risk Trend:", f"{report['health_status']['trend']:.2f} (7-day avg)")
+        print("Anomaly Dates:", report['health_status']['anomalies'] or "None detected")
+        
+        print("\nRisk Scores:")
+        print(f"- Heart Risk: {report['health_status']['scores']['heart_risk']:.2f}")
+        print(f"- Diabetic Risk: {report['health_status']['scores']['diabetic_risk']:.2f}")
+        print(f"- Cluster Risk: {report['health_status']['scores']['cluster_risk']:.2f}")
+        print(f"- Overall Risk: {report['health_status']['scores']['overall_risk']:.2f}")
+        
+        print("\nLast 10 Days Status:")
+        for day in report['last_10_days_status']:
+            print(f"{day['date']}: Cluster Risk={day['cluster_risk']:.2f}, Heart Risk={day['heart_risk']:.2f}, "
+                  f"Diabetic Risk={day['diabetic_risk']:.2f}, Overall Risk={day['overall_risk']:.2f}, "
+                  f"Risk Level={day['risk_level']}")
+        
+        print("\nCluster Analysis:")
+        print(f"Risk Distribution: {report['cluster_analysis']['risk_distribution']}")
+        print(f"Average Heart Risk by Risk Level: {report['cluster_analysis']['avg_heart_risk']}")
+        print(f"Average Diabetic Risk by Risk Level: {report['cluster_analysis']['avg_diabetic_risk']}")
+        print(f"Average Cluster Risk by Risk Level: {report['cluster_analysis']['avg_cluster_risk']}")
+        print(f"Average Overall Risk by Risk Level: {report['cluster_analysis']['avg_overall_risk']}")
+        
+        print("\nRecommendations:")
+        for tip in report['recommendations']:
+            print(f"- {tip}")
+        
+        # Plot risk trends
+        analyzer.plot_risk_trends()
+        
+    except ValueError as e:
+        print(f"Error: {e}")
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
