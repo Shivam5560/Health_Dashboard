@@ -243,34 +243,34 @@ class EnhancedHealthMetrics(HealthMetrics):
             lambda x: 'High Risk' if x > 0.55 else 'Moderate Risk' if x >= 0.20 else 'Low Risk'
         )
         
-    def get_last_10_days_status(self):
-        last_10_days = self.metrics_df.tail(10).copy()
-        last_10_days['date'] = last_10_days.index.strftime('%Y-%m-%d')
-        last_10_days = last_10_days[['date', 'cluster_risk', 'heart_risk', 'diabetic_risk', 'overall_risk', 'risk_level']]
-        return last_10_days.to_dict(orient='records')
+    def get_last_5_days_status(self):
+        last_5_days = self.metrics_df.tail(5).copy()
+        last_5_days['date'] = last_5_days.index.strftime('%Y-%m-%d')
+        last_5_days = last_5_days[['date', 'cluster_risk', 'heart_risk', 'diabetic_risk', 'overall_risk', 'risk_level']]
+        return last_5_days.to_dict(orient='records')
     
     def plot_risk_trends(self):
-        last_10_days = self.metrics_df.tail(10).copy()
-        last_10_days['date'] = last_10_days.index.strftime('%Y-%m-%d')
+        last_5_days = self.metrics_df.tail(5).copy()
+        last_5_days['date'] = last_5_days.index.strftime('%Y-%m-%d')
         
         # Create figure
         fig = go.Figure()
 
         # Add traces for each risk type
         fig.add_trace(go.Scatter(
-            x=last_10_days['date'], y=last_10_days['cluster_risk'],
+            x=last_5_days['date'], y=last_5_days['cluster_risk'],
             mode='lines+markers', name='Cluster Risk'
         ))
         fig.add_trace(go.Scatter(
-            x=last_10_days['date'], y=last_10_days['heart_risk'],
+            x=last_5_days['date'], y=last_5_days['heart_risk'],
             mode='lines+markers', name='Heart Risk'
         ))
         fig.add_trace(go.Scatter(
-            x=last_10_days['date'], y=last_10_days['diabetic_risk'],
+            x=last_5_days['date'], y=last_5_days['diabetic_risk'],
             mode='lines+markers', name='Diabetic Risk'
         ))
         fig.add_trace(go.Scatter(
-            x=last_10_days['date'], y=last_10_days['overall_risk'],
+            x=last_5_days['date'], y=last_5_days['overall_risk'],
             mode='lines+markers', name='Overall Risk'
         ))
 
@@ -281,15 +281,17 @@ class EnhancedHealthMetrics(HealthMetrics):
 
         # Update layout
         fig.update_layout(
-            title="Last 10 Days Risk Trends",
+            title="Last 5 Instances Risk Trends",
             xaxis_title="Date",
             yaxis_title="Risk Score",
             yaxis_range=[0, 1],
             legend=dict(x=0.02, y=0.98),
-            hovermode="x unified"
+            hovermode="x unified",
+            width=1400,  # Set the width of the figure
+            height=1000
         )
         # fig.show()
-        fig.write_image('figure.png')
+        fig.write_image('figure.png', engine='kaleido', scale=2)
     
     def get_health_status(self):
         status = {
@@ -333,7 +335,7 @@ class EnhancedHealthMetrics(HealthMetrics):
                 'bmi': self.calculate_bmi()
             },
             'health_status': self.get_health_status(),
-            'last_10_days_status': self.get_last_10_days_status(),
+            'last_5_instances_status': self.get_last_5_days_status(),
             'cluster_analysis': self.cluster_analysis(),
             'recommendations': self.generate_health_tips()
         }
@@ -345,34 +347,34 @@ if __name__ == "__main__":
         person_id = int(input("Enter person ID (1-6): "))
         analyzer = EnhancedHealthMetrics(person_id)
         report = analyzer.generate_report()
-        
+        print(report)
         print("\n=== Health Report ===")
         print(f"Person ID: {report['basic_info']['person_id']}")
         print(f"Age: {report['basic_info']['age']}")
         print(f"BMI: {report['basic_info']['bmi']}")
         
         print("\nCurrent Risk Level:", report['health_status']['current_risk'])
-        print("Recent Risk Trend:", f"{report['health_status']['trend']:.2f} (7-day avg)")
+        print("Recent Risk Trend:", f"{report['health_status']['trend']*100:.2f} % (7-day avg)")
         print("Anomaly Dates:", report['health_status']['anomalies'] or "None detected")
         
         print("\nRisk Scores:")
-        print(f"- Heart Risk: {report['health_status']['scores']['heart_risk']:.2f}")
-        print(f"- Diabetic Risk: {report['health_status']['scores']['diabetic_risk']:.2f}")
-        print(f"- Cluster Risk: {report['health_status']['scores']['cluster_risk']:.2f}")
-        print(f"- Overall Risk: {report['health_status']['scores']['overall_risk']:.2f}")
+        print(f"- Heart Risk: {report['health_status']['scores']['heart_risk']*100:.2f} % ")
+        print(f"- Diabetic Risk: {report['health_status']['scores']['diabetic_risk']*100:.2f} % ")
+        print(f"- Cluster Risk: {report['health_status']['scores']['cluster_risk']*100:.2f} % ")
+        print(f"- Overall Risk: {report['health_status']['scores']['overall_risk']*100:.2f} % ")
         
-        print("\nLast 10 Days Status:")
-        for day in report['last_10_days_status']:
-            print(f"{day['date']}: Cluster Risk={day['cluster_risk']:.2f}, Heart Risk={day['heart_risk']:.2f}, "
-                  f"Diabetic Risk={day['diabetic_risk']:.2f}, Overall Risk={day['overall_risk']:.2f}, "
+        print("\nLast 5 instances Status:")
+        for day in report['last_5_instances_status']:
+            print(f"{day['date']}: Cluster Risk={day['cluster_risk']*100:.2f} % , Heart Risk={day['heart_risk']*100:.2f} % , "
+                  f"Diabetic Risk={day['diabetic_risk']*100:.2f} % , Overall Risk={day['overall_risk']*100:.2f} % , "
                   f"Risk Level={day['risk_level']}")
         
         print("\nCluster Analysis:")
         print(f"Risk Distribution: {report['cluster_analysis']['risk_distribution']}")
-        print(f"Average Heart Risk by Risk Level: {report['cluster_analysis']['avg_heart_risk']}")
-        print(f"Average Diabetic Risk by Risk Level: {report['cluster_analysis']['avg_diabetic_risk']}")
-        print(f"Average Cluster Risk by Risk Level: {report['cluster_analysis']['avg_cluster_risk']}")
-        print(f"Average Overall Risk by Risk Level: {report['cluster_analysis']['avg_overall_risk']}")
+        # print(f"Average Heart Risk by Risk Level: {report['cluster_analysis']['avg_heart_risk']}")
+        # print(f"Average Diabetic Risk by Risk Level: {report['cluster_analysis']['avg_diabetic_risk']}")
+        # print(f"Average Cluster Risk by Risk Level: {report['cluster_analysis']['avg_cluster_risk']}")
+        # print(f"Average Overall Risk by Risk Level: {report['cluster_analysis']['avg_overall_risk']}")
         
         print("\nRecommendations:")
         for tip in report['recommendations']:
