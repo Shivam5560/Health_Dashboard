@@ -1,0 +1,45 @@
+[server]
+customTheme = { base="dark", primaryColor="#4CAF50", backgroundColor="#1E1E2F", secondaryBackgroundColor="#2A2A40", textColor="#F5F5F5", font="Roboto, sans-serif" }
+
+[ui]
+customCss = true
+
+[theme]
+# Primary color for buttons, accents, and highlights
+primaryColor = "#4CAF50"  # Vibrant green for action elements
+
+# Background color for the main content area
+backgroundColor = "#1E1E2F"  # Dark grayish-blue for dashboard feel
+
+# Secondary background color for sidebars and alternate sections
+secondaryBackgroundColor = "#2A2A40"  # Slightly lighter dark grayish-blue
+
+# Text color for readability
+textColor = "#F5F5F5"  # Light gray for clear readability on dark backgrounds
+
+# Font family for a modern, professional look
+font = "Roboto, sans-serif"
+
+# Additional customizations for polish
+[theme.custom]
+# Border radius for buttons and containers
+buttonBorderRadius = "6px"
+
+# Padding for buttons and inputs
+buttonPadding = "12px 24px"
+
+# Font size for headers
+headerFontSize = "24px"
+
+# Font size for body text
+bodyFontSize = "16px"
+
+# Hover effects for buttons
+buttonHoverColor = "#388E3C"  # Darker green for hover effect
+
+# Shadow for depth and focus
+containerShadow = "0 4px 20px rgba(0, 0, 0, 0.3)"  # Stronger shadow for depth
+
+# Smooth transitions for interactivity
+transitionEffect = "all 0.3s ease-in-out"
+
