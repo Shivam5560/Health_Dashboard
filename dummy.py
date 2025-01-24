@@ -50,7 +50,7 @@ class HealthMetrics:
             score += 1  # Elevated BP
 
         # Cholesterol
-        if entry['cholesterol'] > 240:
+        if entry['cholesterol'] > 220:
             score += 2  # High total cholesterol
         elif entry['cholesterol'] > 200:
             score += 1  # Borderline high
@@ -471,7 +471,7 @@ class EnhancedHealthMetrics(HealthMetrics):
     
     def calculate_trend(self):
         # Calculate 7-day moving average of overall risk
-        return self.metrics_df['overall_risk'].rolling(7).mean().iloc[-1]
+        return self.metrics_df['overall_risk'].rolling(7).mean().iloc[-1]*100
     
     def detect_anomalies(self):
         # Use isolation forest for anomaly detection
