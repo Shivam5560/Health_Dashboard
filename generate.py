@@ -9,7 +9,7 @@ def generate_health_insights(input_data):
     **Comprehensive Health Risk Assessment & Clinical Guidance**
 
     Analyze the provided patient data and generate a structured JSON response with specific, clinically-relevant recommendations. Maintain formal medical terminology while ensuring actionable directives and have 3-4 suggestions for each values of the subkeys and keep the tone formal and with no repetitive action verbs.
-    Based on risk_scores parameters having scores of ascvd,chd,ckd,diabetes,stroke,overall risk percentage metrics and many more, have the output of insights and action items and recommendation appended with some from this as well for all 3 keys, so we would have a balanced and precise keys values, repetition of same things can be skipped/changed from every other values. 
+    Based on risk_scores parameters having scores of ascvd,chd,ckd,diabetes,stroke,overall risk percentage metrics and many more, have the output of insights and action items and recommendation appended with some from this as well for all 3 keys, so we would have a balanced and precise keys values, repetition of same things can be skipped/changed from every other values.
     
     Patient Data:
     {json.dumps(input_data, indent=2)}
@@ -33,9 +33,12 @@ def generate_health_insights(input_data):
     - Long-term: 3-6 month objectives with success metrics
     - Follow-up: Specific timeline and assessment targets
 
-    4. **Summary**: Concise clinical synopsis (75±15 words) prioritizing acute risks and critical interventions.
+    4. **Summary**: Concise clinical synopsis (120 words) prioritizing acute risks and critical interventions.
+    
+    5. **extra_score** : This returns the risk points for each parameter along with the corresponding score category, which can be 'low', 'moderate', or 'high'. The score cannot be 0, and the category depends on the score or points for each metric (e.g., the hypertension score category is determined by the hypertension score, and the same applies to the other three metrics)."
+    
+    
     Structure response exactly as given below json format no changes in it:
-
     ```json
     {{
         "recommendations": {{
@@ -53,7 +56,18 @@ def generate_health_insights(input_data):
             "long_term_goals": ["goal1", "goal2",..],
             "follow_up_schedule": ["Schedule details",..]
         }},
-        "Summary": ""
+        "Summary": "",
+
+        "extra_score":{{
+            "hypertension_score":,
+            "depression_score":,
+            "anxiety_score":,
+            "stress_score":,
+            "hypertension_score_category":,
+            "depression_score_category":,
+            "anxiety_score_category":,
+            "stress_score_category":,
+        }}
     }}
     **Composition Guidelines:**
     1. **Terminology & Precision:**
@@ -89,9 +103,9 @@ def generate_health_insights(input_data):
             messages=[{'role': 'user', 'content': prompt}],
             format='json',
             options={
-                'temperature': 0.1,
+                'temperature': 0.05,
                 'num_ctx': 4096,
-                'max_tokens': 5000,
+                'max_tokens': 6000,
                 'stop': ["\n```"]  # Stops generation at the end of the JSON block
             }
         )
@@ -118,4 +132,4 @@ if __name__=="__main__":
     results = generate_health_insights(input_data)
 
     print(f"\nTime taken: {time.time() - start_time:.2f}s")
-    print(json.dumps(results, indent=2, ensure_ascii=False))
+    # print(json.dumps(results, indent=2, ensure_ascii=False))
