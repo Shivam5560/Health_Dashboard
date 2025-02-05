@@ -1,0 +1,11 @@
+Pers id,Name,Rank,DOB,Age,Sex,Ht(cm),Wt(kg),BMI,Waist Circumference,Smoking,Alcohol intake,Phy activity,Family H/O DM,Family H/O heart disease,Heart rate,SBP,DBP,Spo2,Temp(_f),Hb,WBC,Plt,FBS,PPBS,HbA1c,T.choles,HDL,LDL,T.Bilirubin,Sr.Urea,Sr.Creatinine,T.Protein,Sr.Albumin,Sr.Globulin
+JC-287336X,Pradeep Kumar,Sub,,46,M,172,76,,96,Occasionally,Occasionally,Active,Yes,No,84,128,84,99,97,15,8.2,2.8,92,114,5.8,196,46,122,1,34,1,6.2,3.8,1.8
+JC-287336X,JC-287336X,Sub,,47,M,172,78,,96,Occasionally,Occasionally,Active,Yes,No,86,130,86,99,97,16,7.7,2.2,90,112,6,192,44,114,0.8,32,0.8,5.6,5,2
+JC-281016M,Surender Singh,Sub,,44,M,174,74,,88,Never,Never,Moderate,No,No,84,122,84,99,98,13.8,9,2.8,96,122,5.8,190,32,148,0.8,35,0.9,5.8,3.2,2.4
+JC-281016M,Surender Singh,Sub,,45,M,174,72,,88,Never,Never,Moderate,No,No,82,118,78,98,96,14.4,8.2,1.75,98,110,6.2,198,38,122,1.2,38,1,6.2,4.6,2.2
+JC-2942235M,Bijender Singh,Nb Sub,,41,M,166,88,,98,Daily,Daily,Light,Yes,Yes,88,144,90,99,98,13,7.2,2.6,92,140,6.8,210,44,138,1,38,1,5.8,3.6,2.8
+JC-2942235M,Bijender Singh,Nb Sub,,42,M,166,82,,96,Daily,Daily,Light,Yes,Yes,86,132,88,98,97,15.1,8.6,3.2,98,130,7.2,220,42,136,1.2,36,1,6.4,4.4,2.2
+JC-285408X,Sukh Ram Vishnoi,Sub,,46,M,182,84,,98,Occasionally,Occasionally,Active,No,Yes,78,144,88,99,98,12,8.8,2.6,92,118,5.6,200,42,133,0.2,32,0.8,6.2,3.8,2
+JC-285408X,Sukh Ram Vishnoi,Sub,,47,M,182,88,,98,Occasionally,Occasionally,Active,No,Yes,88,152,90,99,98,16,9.6,2.2,88,122,5.8,210,32,148,0.8,38,1.2,5.8,3.2,1.8
+JC-291765V,R C Patil,Sub,,45,M,188,94,,102,Daily,Daily,Light,Yes,Yes,94,148,88,99,99,12,7.4,2.4,99,136,6.8,210,34,144,0.9,38,0.8,5.9,3,2
+JC-291765V,R C Patil,Sub,,46,M,188,90,,102,Daily,Daily,Light,Yes,Yes,92,154,92,100,98,13.4,8.8,1.8,102,144,7.6,220,36,152,1.2,34,1,6.2,3.2,2.2
