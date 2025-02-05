@@ -596,23 +596,22 @@ class EnhancedHealthMetrics(HealthMetrics):
     def get_health_status(self):
         status = {
             'scores': {
-                'chd_risk': self.metrics_df['chd_risk'].iloc[-1],
-                'base_ascvd_risk': self.metrics_df['base_ascvd_risk'].iloc[-1],
-                'enhanced_ascvd_risk': self.metrics_df['enhanced_ascvd_risk'].iloc[-1],
-                'Total_Stroke_Points': self.metrics_df['Total_Stroke_Points'].iloc[-1],
-                'base_stroke_risk': self.metrics_df['base_stroke_risk'].iloc[-1],
-                'adjusted_stroke_risk': self.metrics_df['adjusted_stroke_risk'].iloc[-1],
-                'stroke_risk_category': self.metrics_df['stroke_risk_category'].iloc[-1],
-                'Total_Diabetes_Points':self.metrics_df['Total_Diabetes_Points'].iloc[-1],
-                'base_diabetes_risk':self.metrics_df['base_diabetes_risk'].iloc[-1],
-                'base_diabetes_risk_type':self.metrics_df['base_diabetes_risk_type'].iloc[-1],
-                'advice_diabetes':self.metrics_df['advice_diabetes'].iloc[-1],
-                'ckd_risk_points':self.metrics_df['ckd_risk_points'].iloc[-1],
-                'ckd_risk_group':self.metrics_df['ckd_risk_group'].iloc[-1],
-                'ckd_risk_category':self.metrics_df['ckd_risk_category'].iloc[-1],
-                'risk_category':self.metrics_df['risk_category'].iloc[-1],
-                'overall_risk_percentage':self.metrics_df['overall_risk_percentage'].iloc[-1],
-
+                'chd_risk': float(self.metrics_df['chd_risk'].iloc[-1]),
+                'base_ascvd_risk': float(self.metrics_df['base_ascvd_risk'].iloc[-1]),
+                'enhanced_ascvd_risk': float(self.metrics_df['enhanced_ascvd_risk'].iloc[-1]),
+                'Total_Stroke_Points': float(self.metrics_df['Total_Stroke_Points'].iloc[-1]),
+                'base_stroke_risk': float(self.metrics_df['base_stroke_risk'].iloc[-1]),
+                'adjusted_stroke_risk': float(self.metrics_df['adjusted_stroke_risk'].iloc[-1]),
+                'stroke_risk_category': str(self.metrics_df['stroke_risk_category'].iloc[-1]),
+                'Total_Diabetes_Points': float(self.metrics_df['Total_Diabetes_Points'].iloc[-1]),
+                'base_diabetes_risk': str(self.metrics_df['base_diabetes_risk'].iloc[-1]),
+                'base_diabetes_risk_type': str(self.metrics_df['base_diabetes_risk_type'].iloc[-1]),
+                'advice_diabetes': str(self.metrics_df['advice_diabetes'].iloc[-1]),
+                'ckd_risk_points': float(self.metrics_df['ckd_risk_points'].iloc[-1]),
+                'ckd_risk_group': int(self.metrics_df['ckd_risk_group'].iloc[-1]),  # Assuming it's an integer
+                'ckd_risk_category': str(self.metrics_df['ckd_risk_category'].iloc[-1]),
+                'risk_category': str(self.metrics_df['risk_category'].iloc[-1]),
+                'overall_risk_percentage': float(self.metrics_df['overall_risk_percentage'].iloc[-1]),
             }
         }
         return status

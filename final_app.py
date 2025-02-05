@@ -1,13 +1,16 @@
 import pandas as pd
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import IsolationForest
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.graph_objects as go
 import math
 from plotly.subplots import make_subplots
 from flask import Flask, request, jsonify
+import json
+import csv
+from generate import generate_health_insights
+import time
+
+
 app = Flask(__name__)
 
 class HealthMetrics:
@@ -18,7 +21,7 @@ class HealthMetrics:
         
     def load_health_data(self):
         try:
-            df = pd.read_csv("final_data.csv")
+            df = pd.read_csv("uploads/data.csv")
         except FileNotFoundError:
             raise FileNotFoundError("CSV file not found. Please check the file path.")
 
@@ -402,116 +405,6 @@ class EnhancedHealthMetrics(HealthMetrics):
         self.risk_category = self.metrics_df['risk_category'].iloc[-1]
 
         
-    def generate_recommendations(self):
-        latest = self.metrics_df.iloc[-1]
-        recommendations = {'do': [], 'dont': []}
-        # Coronary Heart Disease Recommendations
-        if latest['chd_risk'] >= 10:  # High risk threshold
-            recommendations['do'].extend([
-                "Consult a cardiologist for further evaluation",
-                "Consider starting statin therapy if not already prescribed"
-            ])
-            recommendations['dont'].append("Avoid high-fat diets and smoking")
-        elif 5 <= latest['chd_risk'] < 10:  # Moderate risk threshold
-            recommendations['do'].append("Increase physical activity to at least 150 mins/week")
-            recommendations['dont'].append("Limit saturated fats and cholesterol intake")
-
-        # ASCVD Risk
-        if latest['enhanced_ascvd_risk'] >= 7.5:  # High risk threshold
-            recommendations['do'].append("Consider statin therapy after medical consultation")
-            recommendations['dont'].append("Avoid prolonged sedentary behavior")
-
-        # Stroke Prevention
-        if latest['stroke_risk_category'] in ['High', 'Moderate']:
-            recommendations['do'].append("Monitor atrial fibrillation status regularly")
-            recommendations['dont'].append("Limit alcohol consumption to ≤2 drinks/day")
-
-        # Chronic Kidney Disease Recommendations
-        ckd_category, ckd_risk_score = latest['ckd_risk_category'],latest['ckd_risk_points']
-        
-        if ckd_category == 'Severe' or ckd_category == 'End Stage':
-            recommendations['do'].extend([
-                "Consult a nephrologist for specialized care",
-                "Monitor blood pressure and blood sugar levels closely"
-            ])
-            recommendations['dont'].append("Avoid NSAIDs without medical supervision")
-        elif ckd_category == 'Moderate':
-            recommendations['do'].append("Maintain a low-protein diet as advised by your doctor")
-            recommendations['dont'].append("Avoid excessive salt intake")
-
-        # Blood pressure recommendations
-        if latest['SBP'] >= 140 or latest['DBP'] >= 90:
-            recommendations['do'].append("Monitor BP daily and consult cardiologist")
-            recommendations['dont'].append("Avoid high-sodium foods (>1500mg/day)")
-        
-        # Diabetes prevention
-        if latest['base_diabetes_risk'] in ['High', 'Moderate']:
-            recommendations['do'].append("Get HbA1c test every 3 months")
-            recommendations['do'].append("Include 30 mins aerobic exercise daily")
-            recommendations['dont'].append("Avoid sugary drinks and refined carbs")
-        
-        # Smoking cessation
-        if latest['Smoking'] != 'Never':
-            recommendations['do'].append("Start smoking cessation program")
-            recommendations['do'].append("Use nicotine replacement therapy")
-            recommendations['dont'].append("Avoid smoking triggers like alcohol")
-        
-        # Weight management
-        if latest['BMI'] >= 25:
-            recommendations['do'].append("Aim for 5-10% weight loss gradually")
-            recommendations['dont'].append("Avoid crash diets or extreme fasting")
-        
-        return recommendations
-
-    def generate_visualizations(self):
-        fig = make_subplots(rows=3, cols=2, subplot_titles=(
-            'CHD Risk Score', 
-            'Diabetes Risk Progression',
-            'Stroke Risk Timeline',
-            'ASCVD Risk Progression',
-            'CKD Risk Progression',
-        ))
-        
-        # Cardiovascular risk plot
-        fig.add_trace(go.Line(
-            x=self.metrics_df['Age'], 
-            y=self.metrics_df['chd_risk'],
-            name='CHD Risk Score'
-        ), row=1, col=1)
-        
-        # Diabetes risk plot
-        fig.add_trace(go.Line(
-            x=self.metrics_df['Age'],
-            y=self.metrics_df['Total_Diabetes_Points'],
-            name='Diabetes Risk Score'
-        ), row=1, col=2)
-        
-        # Stroke risk plot
-        fig.add_trace(go.Line(
-            x=self.metrics_df['Age'],
-            y=self.metrics_df['adjusted_stroke_risk'],
-            name='Stroke Risk'
-        ), row=2, col=1)
-
-        fig.add_trace(go.Line(
-            x=self.metrics_df['Age'],
-            y=self.metrics_df['enhanced_ascvd_risk'],
-            name='ASCVD Risk'
-        ), row=2, col=2)
-
-        fig.add_trace(go.Line(
-            x=self.metrics_df['Age'],
-            y=self.metrics_df['ckd_risk_points'],
-            name='CKD Risk Score'
-        ), row=3, col=1)
-
-        
-        
-        
-        fig.update_layout(height=800, width=1200, title_text='Health Risk Dashboard')
-        fig.write_image('winners.png', engine='kaleido', scale=2)
-
-        
     def perform_scoring(self):
         # Calculate risk entry
         self.metrics_df['chd_risk'] = self.metrics_df.apply(
@@ -619,40 +512,95 @@ class EnhancedHealthMetrics(HealthMetrics):
         }
         return status
 
+    def generate_report(self):
+        return {
+            'basic_info': {
+                'person_id': self.person_id,
+                'last_update': datetime.now().isoformat(),
+                'BMI': float(self.metrics_df['BMI'].iloc[-1]),
+            },
+            'risk_scores': self.get_health_status(),
+            'historical_data': self._get_historical_data()
+        }
     
-    @app.route('/generate_report', methods=['POST'])
-    def generate_report():
-        try:
-            # Get the person_id from the request
-            data = request.json
-            person_id = data.get('person_id')
-            
-            if not person_id:
-                return jsonify({"error": "person_id is required"}), 400
-
-            # Create an instance of EnhancedHealthMetrics
-            analyzer = EnhancedHealthMetrics(person_id)
-            
-            # Generate the report
-            report = analyzer.generate_report()
-            
-            # Return the report as JSON
-            return jsonify(report), 200
-
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
-        except FileNotFoundError as e:
-            return jsonify({"error": str(e)}), 404
-        except Exception as e:
-            return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
-
     def _get_historical_data(self):
         hist_df = self.metrics_df.tail(5).reset_index()
-        return hist_df[[
-            'Pers id','Name','Age', 'BMI', 'chd_risk', 'enhanced_ascvd_risk',
-            'adjusted_stroke_risk', 'base_diabetes_risk', 'ckd_risk_points','ckd_risk_category'
-        ]].to_dict(orient='records')
+        hist_df = hist_df.fillna(0)
+        return hist_df.to_dict(orient='records')
+
+
+# Set the upload folder
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+app.config['ALLOWED_EXTENSIONS'] = {'csv'}
+
+# Helper function to check allowed file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and allowed_file(file.filename):
+        filename = file.filename
+        file.save(f"{app.config['UPLOAD_FOLDER']}/{filename}")
+
+        # Process CSV file (you can read and return its content, or do further processing)
+        with open(f"{app.config['UPLOAD_FOLDER']}/{filename}", newline='') as csvfile:
+            csv_reader = csv.reader(csvfile)
+            rows = list(csv_reader)
+
+        return jsonify({"message": "File uploaded successfully", "data": rows}), 200
+    
+    return jsonify({"error": "Invalid file format"}), 400
+
+
+@app.route('/generate_report', methods=['POST'])
+def generate_report():
+    try:
+        # Get the person_id from the request
+        data = request.json
+        person_id = data.get('person_id')
+        
+        if not person_id:
+            return jsonify({"error": "person_id is required"}), 400
+
+        # Create an instance of EnhancedHealthMetrics
+        analyzer = EnhancedHealthMetrics(person_id)
+        
+        # Generate the report using the instance method
+        report = analyzer.generate_report()
+        report = json.loads(json.dumps(report, default=lambda x: int(x) if isinstance(x, np.integer) else x))
+        
+        # Benchmark and test
+        start_time = time.time()
+        results = generate_health_insights(report)
+        execution_time = time.time() - start_time
+
+        # Convert results if needed
+        results = json.loads(json.dumps(results, default=lambda x: int(x) if isinstance(x, np.integer) else x))
+
+        # Append results directly into report
+        report.update(results)
+
+        return jsonify(report), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
 
 # Driver Code
 if __name__ == "__main__":
     app.run(debug=True)
+    
+
+
