@@ -1,13 +1,12 @@
 import pandas as pd
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import IsolationForest
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.graph_objects as go
 import math
 from plotly.subplots import make_subplots
 from flask import Flask, request, jsonify
+import json
+import csv
 app = Flask(__name__)
 
 class HealthMetrics:
@@ -18,7 +17,7 @@ class HealthMetrics:
         
     def load_health_data(self):
         try:
-            df = pd.read_csv("final_data.csv")
+            df = pd.read_csv("uploads/data.csv")
         except FileNotFoundError:
             raise FileNotFoundError("CSV file not found. Please check the file path.")
 
@@ -619,33 +618,19 @@ class EnhancedHealthMetrics(HealthMetrics):
         }
         return status
 
+    def generate_report(self):
+        return {
+            'basic_info': {
+                'person_id': self.person_id,
+                'last_update': datetime.now().isoformat(),
+                'BMI': float(self.metrics_df['BMI'].iloc[-1]),
+            },
+            'risk_scores': self.get_health_status(),
+            'historical_data': self._get_historical_data(),
+            'recommendations': self.generate_recommendations(),
+            # 'visualization': self.generate_visualizations()
+        }
     
-    @app.route('/generate_report', methods=['POST'])
-    def generate_report():
-        try:
-            # Get the person_id from the request
-            data = request.json
-            person_id = data.get('person_id')
-            
-            if not person_id:
-                return jsonify({"error": "person_id is required"}), 400
-
-            # Create an instance of EnhancedHealthMetrics
-            analyzer = EnhancedHealthMetrics(person_id)
-            
-            # Generate the report
-            report = analyzer.generate_report()
-            
-            # Return the report as JSON
-            return jsonify(report), 200
-
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
-        except FileNotFoundError as e:
-            return jsonify({"error": str(e)}), 404
-        except Exception as e:
-            return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
-
     def _get_historical_data(self):
         hist_df = self.metrics_df.tail(5).reset_index()
         return hist_df[[
@@ -653,6 +638,69 @@ class EnhancedHealthMetrics(HealthMetrics):
             'adjusted_stroke_risk', 'base_diabetes_risk', 'ckd_risk_points','ckd_risk_category'
         ]].to_dict(orient='records')
 
+
+# Set the upload folder
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+app.config['ALLOWED_EXTENSIONS'] = {'csv'}
+
+# Helper function to check allowed file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and allowed_file(file.filename):
+        filename = file.filename
+        file.save(f"{app.config['UPLOAD_FOLDER']}/{filename}")
+
+        # Process CSV file (you can read and return its content, or do further processing)
+        with open(f"{app.config['UPLOAD_FOLDER']}/{filename}", newline='') as csvfile:
+            csv_reader = csv.reader(csvfile)
+            rows = list(csv_reader)
+
+        return jsonify({"message": "File uploaded successfully", "data": rows}), 200
+    
+    return jsonify({"error": "Invalid file format"}), 400
+
+
+@app.route('/generate_report', methods=['POST'])
+def generate_report():
+    try:
+        # Get the person_id from the request
+        data = request.json
+        person_id = data.get('person_id')
+        
+        if not person_id:
+            return jsonify({"error": "person_id is required"}), 400
+
+        # Create an instance of EnhancedHealthMetrics
+        analyzer = EnhancedHealthMetrics(person_id)
+        
+        # Generate the report using the instance method
+        report = analyzer.generate_report()
+        
+        # Convert numpy.int64 to native Python int
+        report = json.loads(json.dumps(report, default=lambda x: int(x) if isinstance(x, np.integer) else x))
+        return jsonify(report), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred", "details": str(e)}), 500
+
 # Driver Code
 if __name__ == "__main__":
     app.run(debug=True)
+    
+
+
